@@ -1,0 +1,1879 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>上海中学互动式探索系统</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            touch-action: none;
+        }
+
+        body {
+            overflow: hidden;
+            background-color: #2c3e50;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            background-color: #333; 
+        }
+
+        /* --- 导航 UI 样式 --- */
+        #nav-container {
+            position: absolute;
+            top: 60px;
+            left: 20px;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .nav-btn {
+            width: 50px;
+            height: 50px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 50%;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            border: 2px solid #3498db;
+        }
+
+        .nav-btn:hover {
+            transform: scale(1.1);
+        }
+
+        .nav-btn svg {
+            width: 24px;
+            height: 24px;
+            fill: #3498db;
+        }
+
+        .nav-panel {
+            margin-top: 15px;
+            width: 260px;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            padding: 15px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+            transform-origin: top left;
+            transform: scale(0);
+            opacity: 0;
+            transition: all 0.3s ease;
+            pointer-events: none;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+
+        .nav-panel.active {
+            transform: scale(1);
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .nav-header {
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .close-nav {
+            cursor: pointer;
+            font-size: 18px;
+            color: #999;
+        }
+
+        .nav-info {
+            font-size: 13px;
+            color: #555;
+            margin-bottom: 15px;
+            background: #f8f9fa;
+            padding: 8px;
+            border-radius: 6px;
+        }
+
+        .nav-info p {
+            margin: 4px 0;
+        }
+
+        .nav-list {
+            list-style: none;
+        }
+
+        .nav-item {
+            padding: 8px 10px;
+            margin-bottom: 5px;
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            color: #333;
+            transition: background 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .nav-item:hover {
+            background: #e3f2fd;
+            border-color: #3498db;
+        }
+
+        .nav-item.active-target {
+            background: #3498db;
+            color: white;
+            border-color: #2980b9;
+        }
+
+        /*摇杆的部分 */
+        #joystick-zone {
+            position: absolute;
+            bottom: 40px;
+            left: 40px;
+            width: 120px;
+            height: 120px;
+            z-index: 10;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0.8;
+        }
+
+        .joystick-base {
+            width: 100px;
+            height: 100px;
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            border-radius: 50%;
+            position: relative;
+            backdrop-filter: blur(4px);
+        }
+
+        .joystick-stick {
+            width: 40px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            pointer-events: none;
+            transition: transform 0.1s;
+        }
+
+        #controls-hint {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: rgba(255, 255, 255, 0.7);
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-size: 14px;
+            pointer-events: none;
+            user-select: none;
+        }
+        @media (min-width: 768px) {
+            #joystick-zone {
+                opacity: 0.3;
+            }
+        }
+        
+        /* 加载提示 */
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 20px;
+            z-index: 200;
+            background: rgba(0,0,0,0.7);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        #loading small {
+            display: block;
+            margin-top: 10px;
+            font-size: 12px;
+            color: #ccc;
+            font-weight: normal;
+        }
+
+        /* --- 交互提示样式 --- */
+        .interaction-prompt {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transform: translate(-50%, -100%);
+            margin-top: -10px;
+            z-index: 250;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+
+        .interaction-key {
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid white;
+            border-radius: 4px;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            font-size: 16px;
+            cursor: pointer;
+            pointer-events: auto;
+            user-select: none;
+        }
+
+        .interaction-key:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        /* 交互式的文本框 */
+        #dialogue-container {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 20px;
+            z-index: 300;
+            transform: translateY(100%);
+            transition: transform 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            max-height: 60vh;
+        }
+
+        #dialogue-container.active {
+            transform: translateY(0);
+        }
+
+        #dialogue-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        #dialogue-close {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #dialogue-content {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        #dialogue-avatar {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: #3498db;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            color: white;
+            flex-shrink: 0;
+            overflow: hidden;
+            border: 2px solid #fff;
+        }
+        
+        #dialogue-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        #dialogue-text {
+            flex: 1;
+            font-size: 16px;
+            line-height: 1.5;
+        }
+
+        #dialogue-input-container {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-top: 15px;
+        }
+
+        #dialogue-input {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+            padding: 10px;
+            color: white;
+            font-size: 16px;
+        }
+
+        #dialogue-input::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        #dialogue-send {
+            background: #3498db;
+            border: none;
+            border-radius: 4px;
+            padding: 10px 20px;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        #dialogue-send:hover {
+            background: #2980b9;
+        }
+
+        #voice-button {
+            background: #e74c3c;
+            border: none;
+            border-radius: 4px;
+            padding: 10px;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #voice-button:hover {
+            background: #c0392b;
+        }
+
+        #voice-button.recording {
+            background: #c0392b;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.7;
+            }
+            100% {
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="loading">
+        地图加载中...
+        <small>请确保 map.png 在同一目录下</small>
+    </div>
+    <canvas id="gameCanvas"></canvas>
+    
+    <!--导航功能的部分 -->
+    <div id="nav-container">
+        <div class="nav-btn" id="nav-toggle-btn">
+            <svg viewBox="0 0 24 24">
+                <path d="M12 2L4.5 20.29C4.2 21.02 5.05 21.63 5.69 21.18L12 16.5L18.31 21.18C18.95 21.63 19.8 21.02 19.5 20.29L12 2Z"/>
+            </svg>
+        </div>
+        
+        <div class="nav-panel" id="nav-panel">
+            <div class="nav-header">
+                <span>导航</span>
+                <span class="close-nav" id="nav-close">&times;</span>
+            </div>
+            
+            <div class="nav-info">
+                <p>📍 位置：<span id="nav-coords">0, 0</span></p>
+                <p>🏢 最近：<span id="nav-nearest">未知</span></p>
+            </div>
+
+            <div style="font-size:12px; color:#666; margin-bottom:5px;">选择目的地：</div>
+            <ul class="nav-list" id="nav-list">
+                <!-- 列表由 JS 生成 -->
+            </ul>
+        </div>
+    </div>
+
+    <div id="controls-hint">
+        电脑：W A S D 移动<br>
+        手机：左下角摇杆移动<br>
+        靠近建筑按E键交互<br>
+        By 280574,280557
+    </div>
+
+    <div id="joystick-zone">
+        <div class="joystick-base">
+            <div class="joystick-stick" id="stick"></div>
+        </div>
+    </div>
+
+    <!-- 交互提示 -->
+    <div class="interaction-prompt" id="interaction-prompt">
+        <span>按E和我聊天吧~</span>
+        <div class="interaction-key" id="interaction-key">E</div>
+    </div>
+    
+    <!-- 导航指引提示 -->
+    <div class="navigation-hint" id="navigation-hint" style="
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 15px 20px;
+        border-radius: 10px;
+        font-size: 16px;
+        z-index: 400;
+        text-align: center;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        pointer-events: none;
+        max-width: 300px;
+    ">
+        <div style="font-size: 24px; margin-bottom: 10px;">🧭</div>
+        <div id="navigation-hint-text">正在导航至...</div>
+        <div id="navigation-hint-distance" style="font-size: 14px; color: #ccc; margin-top: 5px;">距离: 0m</div>
+    </div>
+
+    <!-- 对话文本框 -->
+    <div id="dialogue-container">
+        <div id="dialogue-header">
+            <h3 id="dialogue-title">对话</h3>
+            <button id="dialogue-close">&times;</button>
+        </div>
+        <div id="dialogue-content">
+            <div id="dialogue-avatar">
+                <img src="shs.jpg" 
+                     alt="上海中学校徽" 
+                     style="width: 60px; height: 60px; border-radius: 50%; object-fit: cover;">
+            </div>
+            <div id="dialogue-text">
+                <p>你好。</p>
+            </div>
+        </div>
+        <div id="dialogue-input-container">
+            <input type="text" id="dialogue-input" placeholder="输入你的问题...">
+            <button id="dialogue-send">发送</button>
+            <button id="voice-button">
+                <i class="fas fa-microphone"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const stick = document.getElementById('stick');
+const joystickZone = document.getElementById('joystick-zone');
+const loadingEl = document.getElementById('loading');
+
+// 导航
+const navToggleBtn = document.getElementById('nav-toggle-btn');
+const navPanel = document.getElementById('nav-panel');
+const navCloseBtn = document.getElementById('nav-close');
+const navCoordsEl = document.getElementById('nav-coords');
+const navNearestEl = document.getElementById('nav-nearest');
+const navListEl = document.getElementById('nav-list');
+
+// 交互
+const interactionPrompt = document.getElementById('interaction-prompt');
+const interactionKey = document.getElementById('interaction-key');
+const dialogueContainer = document.getElementById('dialogue-container');
+const dialogueClose = document.getElementById('dialogue-close');
+const dialogueTitle = document.getElementById('dialogue-title');
+const dialogueAvatar = document.getElementById('dialogue-avatar');
+const dialogueText = document.getElementById('dialogue-text');
+const dialogueInput = document.getElementById('dialogue-input');
+const dialogueSend = document.getElementById('dialogue-send');
+const voiceButton = document.getElementById('voice-button');
+
+let width, height;
+
+// 地图图片对象
+const mapImage = new Image();
+mapImage.src = 'https://cdn.phototourl.com/uploads/2026-02-19-f517cd6d-6700-4f80-bffd-0a310c1c0088.png'
+
+let mapLoaded = false;
+let mapWidth = 4000; 
+let mapHeight = 3300; 
+const campusPolygon = [
+    [220, 180],
+    [700, 120],
+    [1400, 150],
+    [2000, 100],
+    [2800, 150],
+    [3600, 250],
+    [3900, 600],
+    [3950, 1200],
+    [3900, 1800],
+    [3700, 2400],
+    [3200, 2900],
+    [2400, 3100],
+    [1300, 3000],
+    [600, 2800],
+    [200, 2200],
+    [180, 1400],
+    [200, 600]
+];
+// 判断坐标
+function pointInPolygon(px, py, poly) {
+    let inside = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        const xi = poly[i][0], yi = poly[i][1];
+        const xj = poly[j][0], yj = poly[j][1];
+        const intersect = ((yi > py) !== (yj > py))
+            && (px < (xj - xi) * (py - yi) / (yj - yi) + xi);
+        if (intersect) inside = !inside;
+    }
+    return inside;
+}
+mapImage.onload = function() {
+    mapLoaded = true;
+    loadingEl.style.display = 'none';
+    resize(); 
+};
+
+const state = {
+    player: {
+        x: 1100, 
+        y: 750,
+        speed: 5,
+        isMoving: false,
+        walkCycle: 0,
+        facingRight: true
+    },
+    camera: {
+        x: 0,
+        y: 0
+    },
+    input: {
+        x: 0, 
+        y: 0  
+    },
+    keys: {
+        w: false, a: false, s: false, d: false, e: false
+    },
+    navigation: {
+        active: false,
+        target: null,
+        speed: 6,
+        lastValidX: 2000,
+        lastValidY: 1650
+    },
+    interaction: {
+        active: false,
+        currentBuilding: null,
+        dialogueOpen: false
+    }
+};
+
+// 建筑物
+const buildings = [
+    { name: "行政楼", x: 300, y: 250, w: 100, h: 150, npc: { name: "管理员", avatar: "https://p11-flow-imagex-download-sign.byteimg.com/tos-cn-i-a9rns2rl98/516d302d33e44fa7bc915df3b38c7f6e.jpg~tplv-a9rns2rl98-24:720:720.jpg?lk3s=8e244e95&rcl=20260501235007E5DFA2C24E18CE163A57&rrcfp=8a172a1a&x-expires=1778255408&x-signature=y1MyKK4miKWz%2BXDMd5MXvys%2F61M%3D", initialMessage: "你好，行政楼的管理员。" } },
+    { name: "网球场", x: 1050, y: 1115, w: 200, h: 150, npc: { name: "管理员", avatar: "https://p11-flow-imagex-download-sign.byteimg.com/tos-cn-i-a9rns2rl98/516d302d33e44fa7bc915df3b38c7f6e.jpg~tplv-a9rns2rl98-24:720:720.jpg?lk3s=8e244e95&rcl=20260501235007E5DFA2C24E18CE163A57&rrcfp=8a172a1a&x-expires=1778255408&x-signature=y1MyKK4miKWz%2BXDMd5MXvys%2F61M%3D", initialMessage: "你好，这里是网球场。" } },
+    { name: "篮球场", x: 1071, y: 1453, w: 200, h: 200, npc: { name: "管理员", avatar: "https://p11-flow-imagex-download-sign.byteimg.com/tos-cn-i-a9rns2rl98/516d302d33e44fa7bc915df3b38c7f6e.jpg~tplv-a9rns2rl98-24:720:720.jpg?lk3s=8e244e95&rcl=20260501235007E5DFA2C24E18CE163A57&rrcfp=8a172a1a&x-expires=1778255408&x-signature=y1MyKK4miKWz%2BXDMd5MXvys%2F61M%3D", initialMessage: "你好，篮球场的管理员。" } },
+    { name: "体育馆", x: 1110, y: 1925, w: 150, h: 150, npc: { name: "管理员", avatar: "https://p11-flow-imagex-download-sign.byteimg.com/tos-cn-i-a9rns2rl98/516d302d33e44fa7bc915df3b38c7f6e.jpg~tplv-a9rns2rl98-24:720:720.jpg?lk3s=8e244e95&rcl=20260501235007E5DFA2C24E18CE163A57&rrcfp=8a172a1a&x-expires=1778255408&x-signature=y1MyKK4miKWz%2BXDMd5MXvys%2F61M%3D", initialMessage: "你好，体育馆的管理员。" } },
+    { name: "田径场", x: 727, y: 2398, w: 250, h: 600, npc: { name: "管理员", avatar: "https://p11-flow-imagex-download-sign.byteimg.com/tos-cn-i-a9rns2rl98/516d302d33e44fa7bc915df3b38c7f6e.jpg~tplv-a9rns2rl98-24:720:720.jpg?lk3s=8e244e95&rcl=20260501235007E5DFA2C24E18CE163A57&rrcfp=8a172a1a&x-expires=1778255408&x-signature=y1MyKK4miKWz%2BXDMd5MXvys%2F61M%3D", initialMessage: "你好，田径场的管理员。" } },
+    { name: "游泳馆", x: 1876, y: 1668, w: 100, h: 150, npc: { name: "管理员", avatar: "https://p11-flow-imagex-download-sign.byteimg.com/tos-cn-i-a9rns2rl98/516d302d33e44fa7bc915df3b38c7f6e.jpg~tplv-a9rns2rl98-24:720:720.jpg?lk3s=8e244e95&rcl=20260501235007E5DFA2C24E18CE163A57&rrcfp=8a172a1a&x-expires=1778255408&x-signature=y1MyKK4miKWz%2BXDMd5MXvys%2F61M%3D", initialMessage: "你好，游泳馆的管理员。" } },
+    { name: "图书馆", x: 1949, y: 1950, w: 120, h: 100, npc: { name: "管理员", avatar: "https://p11-flow-imagex-download-sign.byteimg.com/tos-cn-i-a9rns2rl98/516d302d33e44fa7bc915df3b38c7f6e.jpg~tplv-a9rns2rl98-24:720:720.jpg?lk3s=8e244e95&rcl=20260501235007E5DFA2C24E18CE163A57&rrcfp=8a172a1a&x-expires=1778255408&x-signature=y1MyKK4miKWz%2BXDMd5MXvys%2F61M%3D", initialMessage: "你好，图书馆的管理员。" } },
+    { name: "男生宿舍1", x: 1825, y: 1133, w: 150, h: 100, npc: { name: "管理员", avatar: "https://p11-flow-imagex-download-sign.byteimg.com/tos-cn-i-a9rns2rl98/516d302d33e44fa7bc915df3b38c7f6e.jpg~tplv-a9rns2rl98-24:720:720.jpg?lk3s=8e244e95&rcl=20260501235007E5DFA2C24E18CE163A57&rrcfp=8a172a1a&x-expires=1778255408&x-signature=y1MyKK4miKWz%2BXDMd5MXvys%2F61M%3D", initialMessage: "你好，男生宿舍的管理员。" } },
+    { name: "男生宿舍2", x: 1473, y: 1534, w: 150, h: 100, npc: { name: "管理员", avatar: "https://p11-flow-imagex-download-sign.byteimg.com/tos-cn-i-a9rns2rl98/516d302d33e44fa7bc915df3b38c7f6e.jpg~tplv-a9rns2rl98-24:720:720.jpg?lk3s=8e244e95&rcl=20260501235007E5DFA2C24E18CE163A57&rrcfp=8a172a1a&x-expires=1778255408&x-signature=y1MyKK4miKWz%2BXDMd5MXvys%2F61M%3D", initialMessage: "你好，男生宿舍的管理员。" } },
+    { name: "女生宿舍", x: 1824, y: 1386, w: 150, h: 100, npc: { name: "管理员", avatar: "https://p11-flow-imagex-download-sign.byteimg.com/tos-cn-i-a9rns2rl98/516d302d33e44fa7bc915df3b38c7f6e.jpg~tplv-a9rns2rl98-24:720:720.jpg?lk3s=8e244e95&rcl=20260501235007E5DFA2C24E18CE163A57&rrcfp=8a172a1a&x-expires=1778255408&x-signature=y1MyKK4miKWz%2BXDMd5MXvys%2F61M%3D", initialMessage: "你好，女生宿舍的管理员。" } },
+    { name: "食堂", x: 2226, y: 1087, w: 150, h: 150, npc: { name: "管理员", avatar: "https://p11-flow-imagex-download-sign.byteimg.com/tos-cn-i-a9rns2rl98/516d302d33e44fa7bc915df3b38c7f6e.jpg~tplv-a9rns2rl98-24:720:720.jpg?lk3s=8e244e95&rcl=20260501235007E5DFA2C24E18CE163A57&rrcfp=8a172a1a&x-expires=1778255408&x-signature=y1MyKK4miKWz%2BXDMd5MXvys%2F61M%3D", initialMessage: "你好，食堂的管理员。" } },
+    { name: "小足球场", x: 2159, y: 1706, w: 100, h: 200, npc: { name: "管理员", avatar: "https://p11-flow-imagex-download-sign.byteimg.com/tos-cn-i-a9rns2rl98/516d302d33e44fa7bc915df3b38c7f6e.jpg~tplv-a9rns2rl98-24:720:720.jpg?lk3s=8e244e95&rcl=20260501235007E5DFA2C24E18CE163A57&rrcfp=8a172a1a&x-expires=1778255408&x-signature=y1MyKK4miKWz%2BXDMd5MXvys%2F61M%3D", initialMessage: "你好，小足球场的管理员。" } },
+    { name: "总务楼", x: 2279, y: 1706, w: 80, h: 200, npc: { name: "管理员", avatar: "https://p11-flow-imagex-download-sign.byteimg.com/tos-cn-i-a9rns2rl98/516d302d33e44fa7bc915df3b38c7f6e.jpg~tplv-a9rns2rl98-24:720:720.jpg?lk3s=8e244e95&rcl=20260501235007E5DFA2C24E18CE163A57&rrcfp=8a172a1a&x-expires=1778255408&x-signature=y1MyKK4miKWz%2BXDMd5MXvys%2F61M%3D", initialMessage: "你好，总务楼的管理员。" } },
+    { name: "影视中心", x: 2802, y: 1559, w: 150, h: 300, npc: { name: "管理员", avatar: "https://p11-flow-imagex-download-sign.byteimg.com/tos-cn-i-a9rns2rl98/516d302d33e44fa7bc915df3b38c7f6e.jpg~tplv-a9rns2rl98-24:720:720.jpg?lk3s=8e244e95&rcl=20260501235007E5DFA2C24E18CE163A57&rrcfp=8a172a1a&x-expires=1778255408&x-signature=y1MyKK4miKWz%2BXDMd5MXvys%2F61M%3D", initialMessage: "你好，影视中心的管理员。" } },
+    { name: "大礼堂", x: 2795, y: 1776, w: 150, h: 200, npc: { name: "管理员", avatar: "https://p11-flow-imagex-download-sign.byteimg.com/tos-cn-i-a9rns2rl98/516d302d33e44fa7bc915df3b38c7f6e.jpg~tplv-a9rns2rl98-24:720:720.jpg?lk3s=8e244e95&rcl=20260501235007E5DFA2C24E18CE163A57&rrcfp=8a172a1a&x-expires=1778255408&x-signature=y1MyKK4miKWz%2BXDMd5MXvys%2F61M%3D", initialMessage: "你好，大礼堂的管理员。" } },
+    { name: "工程楼", x: 3315, y: 1701, w: 80, h: 200, npc: { name: "管理员", avatar: "https://p11-flow-imagex-download-sign.byteimg.com/tos-cn-i-a9rns2rl98/516d302d33e44fa7bc915df3b38c7f6e.jpg~tplv-a9rns2rl98-24:720:720.jpg?lk3s=8e244e95&rcl=20260501235007E5DFA2C24E18CE163A57&rrcfp=8a172a1a&x-expires=1778255408&x-signature=y1MyKK4miKWz%2BXDMd5MXvys%2F61M%3D", initialMessage: "你好，工程楼的管理员。" } },
+    { name: "甄陶楼", x: 3345, y: 1280, w: 120, h: 150, npc: { name: "管理员", avatar: "https://p11-flow-imagex-download-sign.byteimg.com/tos-cn-i-a9rns2rl98/516d302d33e44fa7bc915df3b38c7f6e.jpg~tplv-a9rns2rl98-24:720:720.jpg?lk3s=8e244e95&rcl=20260501235007E5DFA2C24E18CE163A57&rrcfp=8a172a1a&x-expires=1778255408&x-signature=y1MyKK4miKWz%2BXDMd5MXvys%2F61M%3D", initialMessage: "你好，甄陶楼的管理员。" } },
+    { name: "中兴楼", x: 2233, y: 2582, w: 200, h: 250, npc: { name: "管理员", avatar: "https://p11-flow-imagex-download-sign.byteimg.com/tos-cn-i-a9rns2rl98/516d302d33e44fa7bc915df3b38c7f6e.jpg~tplv-a9rns2rl98-24:720:720.jpg?lk3s=8e244e95&rcl=20260501235007E5DFA2C24E18CE163A57&rrcfp=8a172a1a&x-expires=1778255408&x-signature=y1MyKK4miKWz%2BXDMd5MXvys%2F61M%3D", initialMessage: "你好，中兴楼的管理员。" } },
+    { name: "龙门楼", x: 2786, y: 2270, w: 200, h: 100, npc: { name: "管理员", avatar: "https://p11-flow-imagex-download-sign.byteimg.com/tos-cn-i-a9rns2rl98/516d302d33e44fa7bc915df3b38c7f6e.jpg~tplv-a9rns2rl98-24:720:720.jpg?lk3s=8e244e95&rcl=20260501235007E5DFA2C24E18CE163A57&rrcfp=8a172a1a&x-expires=1778255408&x-signature=y1MyKK4miKWz%2BXDMd5MXvys%2F61M%3D", initialMessage: "你好，龙门楼的管理员。" } },
+    { name: "红楼", x: 3385, y: 2170, w: 100, h: 100, npc: { name: "管理员", avatar: "https://p11-flow-imagex-download-sign.byteimg.com/tos-cn-i-a9rns2rl98/516d302d33e44fa7bc915df3b38c7f6e.jpg~tplv-a9rns2rl98-24:720:720.jpg?lk3s=8e244e95&rcl=20260501235007E5DFA2C24E18CE163A57&rrcfp=8a172a1a&x-expires=1778255408&x-signature=y1MyKK4miKWz%2BXDMd5MXvys%2F61M%3D", initialMessage: "你好，红楼的管理员。" } },
+    { name: "先棉堂", x: 3182, y: 2660, w: 100, h: 150, npc: { name: "管理员", avatar: "https://p11-flow-imagex-download-sign.byteimg.com/tos-cn-i-a9rns2rl98/516d302d33e44fa7bc915df3b38c7f6e.jpg~tplv-a9rns2rl98-24:720:720.jpg?lk3s=8e244e95&rcl=20260501235007E5DFA2C24E18CE163A57&rrcfp=8a172a1a&x-expires=1778255408&x-signature=y1MyKK4miKWz%2BXDMd5MXvys%2F61M%3D", initialMessage: "你好，先棉堂的管理员。" } },
+    { name: "逸夫楼", x: 3516, y: 2556, w: 150, h: 150, npc: { name: "管理员", avatar: "https://p11-flow-imagex-download-sign.byteimg.com/tos-cn-i-a9rns2rl98/516d302d33e44fa7bc915df3b38c7f6e.jpg~tplv-a9rns2rl98-24:720:720.jpg?lk3s=8e244e95&rcl=20260501235007E5DFA2C24E18CE163A57&rrcfp=8a172a1a&x-expires=1778255408&x-signature=y1MyKK4miKWz%2BXDMd5MXvys%2F61M%3D", initialMessage: "你好，逸夫楼的管理员。" } },
+    { name: "辅楼", x: 3311, y: 2926, w: 150, h: 150, npc: { name: "管理员", avatar: "https://p11-flow-imagex-download-sign.byteimg.com/tos-cn-i-a9rns2rl98/516d302d33e44fa7bc915df3b38c7f6e.jpg~tplv-a9rns2rl98-24:720:720.jpg?lk3s=8e244e95&rcl=20260501235007E5DFA2C24E18CE163A57&rrcfp=8a172a1a&x-expires=1778255408&x-signature=y1MyKK4miKWz%2BXDMd5MXvys%2F61M%3D", initialMessage: "你好，辅楼的管理员。" } }
+];
+
+function resize() {
+    width = window.innerWidth;
+    height = window.innerHeight;
+    canvas.width = width;
+    canvas.height = height;
+}
+window.addEventListener('resize', resize);
+resize();
+function initNavigation() {
+    navListEl.innerHTML = '';
+    buildings.forEach((b, index) => {
+        const li = document.createElement('li');
+        li.className = 'nav-item';
+        li.innerHTML = `<span>${b.name}</span>`;
+        li.onclick = () => setNavigationTarget(b, li);
+        navListEl.appendChild(li);
+    });
+
+    navToggleBtn.onclick = () => {
+        navPanel.classList.toggle('active');
+    };
+    navCloseBtn.onclick = () => {
+        navPanel.classList.remove('active');
+    };
+}
+function setNavigationTarget(building, listItem) {
+    // 导航目标
+    state.navigation.active = true;
+    state.navigation.autoNavigating = true;
+    state.navigation.target = {
+        x: building.x + building.w / 2,
+        y: building.y + building.h / 2,
+        building: building
+    };
+    
+
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.classList.remove('active-target');
+    });
+    if (listItem) {
+        listItem.classList.add('active-target');
+    }
+    
+
+    showNavigationHint(building);
+    
+    // 关闭导航面板
+    navPanel.classList.remove('active');
+}
+
+function updateNavigation() {
+    const p = state.player;
+    const roundedX = Math.round(p.x);
+    const roundedY = Math.round(p.y);
+    
+    if (navCoordsEl) {
+        navCoordsEl.textContent = `${roundedX}, ${roundedY}`;
+    }
+    
+    
+    let nearestBuilding = null;
+    let minDistance = Infinity;
+    
+    buildings.forEach(building => {
+        const buildingCenterX = building.x + building.w / 2;
+        const buildingCenterY = building.y + building.h / 2;
+        const distance = Math.sqrt(
+            Math.pow(p.x - buildingCenterX, 2) + 
+            Math.pow(p.y - buildingCenterY, 2)
+        );
+        
+        if (distance < minDistance) {
+            minDistance = distance;
+            nearestBuilding = building;
+        }
+    });
+    
+    
+    if (navNearestEl && nearestBuilding) {
+        navNearestEl.textContent = nearestBuilding.name;
+    }
+    
+    
+    if (state.navigation.active && state.navigation.target) {
+        const target = state.navigation.target;
+        const distanceToTarget = Math.sqrt(
+            Math.pow(p.x - target.x, 2) + 
+            Math.pow(p.y - target.y, 2)
+        );
+        
+        if (distanceToTarget < 50) {
+            
+            showArrivalHint(target.building);
+            
+            
+            state.navigation.active = false;
+            state.navigation.target = null;
+            state.navigation.autoNavigating = false;
+            
+            
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.classList.remove('active-target');
+            });
+        } else if (state.navigation.autoNavigating) {
+            
+            const dx = target.x - p.x;
+            const dy = target.y - p.y;
+            const len = Math.sqrt(dx * dx + dy * dy);
+            
+            if (len > 0) {
+                const moveSpeed = p.speed * 0.8; 
+                p.x += (dx / len) * moveSpeed;
+                p.y += (dy / len) * moveSpeed;
+                
+                
+                if (Math.abs(dx) > 0.1) {
+                    p.facingRight = dx > 0;
+                }
+                
+                p.isMoving = true;
+                p.walkCycle += 0.25;
+            }
+        }
+    }
+}
+
+
+function handleRegularInput() {
+    const p = state.player;
+    
+    let dx = 0;
+    let dy = 0;
+
+    if (state.keys.w) dy -= 1;
+    if (state.keys.s) dy += 1;
+    if (state.keys.a) dx -= 1;
+    if (state.keys.d) dx += 1;
+
+    if (Math.abs(state.input.x) > 0.1 || Math.abs(state.input.y) > 0.1) {
+        dx = state.input.x;
+        dy = state.input.y;
+    }
+    
+    if ((dx !== 0 || dy !== 0) && state.navigation.autoNavigating) {
+        state.navigation.autoNavigating = false;
+        state.navigation.active = false;
+        state.navigation.target = null;
+        
+        
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.classList.remove('active-target');
+        });
+        
+        const hintEl = document.getElementById('navigation-hint');
+        const textEl = document.getElementById('navigation-hint-text');
+        const distanceEl = document.getElementById('navigation-hint-distance');
+        
+        if (hintEl && textEl && distanceEl) {
+            textEl.textContent = '导航已取消';
+            distanceEl.textContent = '';
+            hintEl.style.opacity = '1';
+            
+            setTimeout(() => {
+                hintEl.style.opacity = '0';
+            }, 2000);
+        }
+        
+        
+        return;
+    }
+    
+    
+    if (state.navigation.autoNavigating) {
+        return;
+    }
+
+    if (dx !== 0 || dy !== 0) {
+        if (Math.abs(state.input.x) < 0.1 && Math.abs(state.input.y) < 0.1) {
+            const len = Math.sqrt(dx*dx + dy*dy);
+            dx /= len;
+            dy /= len;
+        }
+        
+        p.x += dx * p.speed;
+        p.y += dy * p.speed;
+        
+        if (Math.abs(dx) > 0.1) {
+            p.facingRight = dx > 0;
+        }
+        
+        p.isMoving = true;
+        p.walkCycle += 0.25; 
+    } else {
+        p.isMoving = false;
+    }
+
+    // 键 E
+    if (state.keys.e && state.interaction.active && !state.interaction.dialogueOpen) {
+        openDialogue(state.interaction.currentBuilding);
+        state.interaction.dialogueOpen = true;
+    }
+    
+    
+    if (state.keys['escape'] && state.navigation.autoNavigating) {
+        state.navigation.autoNavigating = false;
+        state.navigation.active = false;
+        state.navigation.target = null;
+        
+        
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.classList.remove('active-target');
+        });
+        
+        
+        const hintEl = document.getElementById('navigation-hint');
+        const textEl = document.getElementById('navigation-hint-text');
+        const distanceEl = document.getElementById('navigation-hint-distance');
+        
+        if (hintEl && textEl && distanceEl) {
+            textEl.textContent = '导航已取消';
+            distanceEl.textContent = '';
+            hintEl.style.opacity = '1';
+            
+            setTimeout(() => {
+                hintEl.style.opacity = '0';
+            }, 2000);
+        }
+    }
+}
+
+/**
+键盘
+ */
+window.addEventListener('keydown', (e) => {
+    const key = e.key.toLowerCase();
+    if (state.keys.hasOwnProperty(key)) state.keys[key] = true;
+});
+
+window.addEventListener('keyup', (e) => {
+    const key = e.key.toLowerCase();
+    if (state.keys.hasOwnProperty(key)) state.keys[key] = false;
+});
+
+/**
+：摇杆
+ */
+let joystickActive = false;
+let joystickCenter = { x: 0, y: 0 };
+const maxStickDist = 40; 
+
+function handleJoystickStart(clientX, clientY) {
+    const rect = joystickZone.getBoundingClientRect();
+    joystickCenter = {
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2
+    };
+    joystickActive = true;
+    handleJoystickMove(clientX, clientY);
+}
+
+function handleJoystickMove(clientX, clientY) {
+    if (!joystickActive) return;
+
+    let dx = clientX - joystickCenter.x;
+    let dy = clientY - joystickCenter.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    if (distance > maxStickDist) {
+        const ratio = maxStickDist / distance;
+        dx *= ratio;
+        dy *= ratio;
+    }
+
+    stick.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+
+    state.input.x = dx / maxStickDist;
+    state.input.y = dy / maxStickDist;
+}
+
+function handleJoystickEnd() {
+    joystickActive = false;
+    state.input.x = 0;
+    state.input.y = 0;
+    stick.style.transform = `translate(-50%, -50%)`;
+}
+
+joystickZone.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    handleJoystickStart(e.touches[0].clientX, e.touches[0].clientY);
+}, { passive: false });
+
+joystickZone.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    handleJoystickMove(e.touches[0].clientX, e.touches[0].clientY);
+}, { passive: false });
+
+joystickZone.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    handleJoystickEnd();
+});
+
+joystickZone.addEventListener('mousedown', (e) => {
+    handleJoystickStart(e.clientX, e.clientY);
+});
+window.addEventListener('mousemove', (e) => {
+    if(joystickActive) handleJoystickMove(e.clientX, e.clientY);
+});
+window.addEventListener('mouseup', () => {
+    if(joystickActive) handleJoystickEnd();
+});
+
+
+function checkInteraction() {
+    const p = state.player;
+    const interactionDistance = 100;
+    
+    state.interaction.active = false;
+    state.interaction.currentBuilding = null;
+    interactionPrompt.style.opacity = '0';
+    
+    
+    for (const building of buildings) {
+        const dx = p.x - building.x;
+        const dy = p.y - building.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (distance < interactionDistance) {
+            state.interaction.active = true;
+            state.interaction.currentBuilding = building;
+            
+            
+            const screenX = building.x - state.camera.x;
+            const screenY = building.y - state.camera.y - building.h / 2;
+            
+            interactionPrompt.style.left = `${screenX}px`;
+            interactionPrompt.style.top = `${screenY}px`;
+            interactionPrompt.style.opacity = '1';
+            
+            break;
+        }
+    }
+}
+
+function openDialogue(building) {
+    if (!building || !building.npc) return;
+    
+    dialogueTitle.textContent = building.name;
+    dialogueAvatar.textContent = building.npc.avatar;
+    dialogueText.innerHTML = `<p>${building.npc.initialMessage}</p>`;
+    dialogueContainer.classList.add('active');
+    dialogueInput.focus();
+}
+
+function closeDialogue() {
+    dialogueContainer.classList.remove('active');
+    state.interaction.dialogueOpen = false;
+}
+
+// 数据库
+const dialogueDatabase = {
+    "甄陶楼": [
+        {
+            keywords: ["自习", "图书馆", "开放", "时间"],
+            questions: ["教学楼里有可以自习的地方吗？", "图书馆什么时候开放？", "自习室在哪里？", "图书馆开放时间"],
+            answer: "有，图书馆中午（12:10–13:30）和下午放学后（16:00–19:00）开放。"
+        },
+        {
+            keywords: ["晚自习", "教室", "监督", "老师"],
+            questions: ["晚自习在哪里进行？是否有老师监督？", "晚自习有老师吗？", "晚自习在教室吗？"],
+            answer: "晚自习在各班教室进行。学生自习为主，老师会在办公室值班，有问题可前往请教。"
+        },
+        {
+            keywords: ["空调", "教室", "宿舍"],
+            questions: ["教室里有空调吗？", "教室有没有空调？", "宿舍有空调吗？"],
+            answer: "是的，教室和宿舍均配备空调，24小时可用。"
+        },
+        {
+            keywords: ["饮水机", "热水", "供应", "打水"],
+            questions: ["教学楼里是否有饮水机或热水供应？", "哪里可以打水？", "有热水吗？"],
+            answer: "龙门楼一楼设有热水供应点，学生可自带水壶打水。"
+        },
+        {
+            keywords: ["实验室", "专用教室", "工程楼", "逸夫楼"],
+            questions: ["高一高二的教学楼（甄陶楼）有没有实验室或专用教室？", "甄陶楼有实验室吗？", "实验课在哪里上？"],
+            answer: "无。但会安排前往工程楼和逸夫楼的课程。"
+        }, 
+        {
+            keywords: ["制作者","制作","编写"],
+            questions: ["程序是谁制作的？","编写这是谁？","这是谁的项目？"],
+            answer: "这是280574和280557制作的SHS互动式探索系统~"
+        }
+    ],
+    "龙门楼": [
+        {
+            keywords: ["自习", "图书馆", "开放", "时间"],
+            questions: ["教学楼里有可以自习的地方吗？", "图书馆什么时候开放？", "自习室在哪里？", "图书馆开放时间"],
+            answer: "有，图书馆中午（12:10–13:30）和下午放学后（16:00–19:00）开放。"
+        },
+        {
+            keywords: ["晚自习", "教室", "监督", "老师"],
+            questions: ["晚自习在哪里进行？是否有老师监督？", "晚自习有老师吗？", "晚自习在教室吗？"],
+            answer: "晚自习在各班教室进行。学生自习为主，老师会在办公室值班，有问题可前往请教。"
+        },
+        {
+            keywords: ["空调", "教室", "宿舍"],
+            questions: ["教室里有空调吗？", "教室有没有空调？", "宿舍有空调吗？"],
+            answer: "是的，教室和宿舍均配备空调，24小时可用。"
+        },
+        {
+            keywords: ["饮水机", "热水", "供应", "打水"],
+            questions: ["教学楼里是否有饮水机或热水供应？", "哪里可以打水？", "有热水吗？"],
+            answer: "龙门楼一楼设有热水供应点，学生可自带水壶打水。"
+        },
+        {
+            keywords: ["环境公约", "规定", "要求"],
+            questions: ["龙门楼有哪些环境公约？", "教学楼有什么规定？", "环境公约是什么？"],
+            answer: "包括不带气味强烈食品入内、保持教室整洁、垃圾分类、及时关灯关窗、维护厕所卫生等16项承诺。详见《上海中学龙门楼环境友好公约》。"
+        }
+    ],
+    "体育馆": [
+        {
+            keywords: ["游泳课", "必修", "不会", "考核"],
+            questions: ["游泳课是必修吗？不会游泳怎么办？", "游泳是必修课吗？", "不会游泳怎么考试？"],
+            answer: "是必修课，不会游泳的老师会教，期末考核分为A、B、C三档，学生可根据自身情况选择报考档次。"
+        },
+        {
+            keywords: ["体育课程", "滑冰", "课程"],
+            questions: ["体育馆里还有哪些体育课程？", "体育课有哪些项目？", "有滑冰课吗？"],
+            answer: "除游泳（下半学期上课）外，还有滑冰课，两者均为必修，班级轮换上课。"
+        },
+        {
+            keywords: ["游泳考核", "标准", "A档", "B档", "C档"],
+            questions: ["游泳考核的标准是什么？", "游泳考试标准", "A档B档C档有什么区别？"],
+            answer: "A档为50米，B档为25米且有秒数要求，C档为25米游完即可。未达标准则自动降档。"
+        },
+        {
+            keywords: ["体育课", "安排", "高一", "高二"],
+            questions: ["体育课如何安排？", "高一体育课学什么？", "高二体育课怎么选？"],
+            answer: "高一为滑冰，双杠，跳远；下半学期有游泳，高二自行选课。"
+        }
+    ],
+    "田径场": [
+        {
+            keywords: ["早操", "时间", "冬令时", "夏令时"],
+            questions: ["早上几点开始早操？冬夏令时有区别吗？", "早操时间", "冬令时和夏令时的区别"],
+            answer: "早操时间为6:25–6:45。冬令时起床和早操时间比夏令时晚15分钟。"
+        },
+        {
+            keywords: ["军训", "操场", "拉练"],
+            questions: ["军训期间是否在操场进行？", "军训在哪里？", "军训要出去拉练吗？"],
+            answer: "是的，军训主要在校内操场进行，不外出拉练。"
+        },
+        {
+            keywords: ["军训", "内务检查", "严格", "注意事项"],
+            questions: ["军训内务检查严格吗？有哪些注意事项？", "军训内务要求", "内务检查严吗？"],
+            answer: "非常严格，建议早起整理内务，可备透明胶带清理地面或床上的头发。"
+        },
+        {
+            keywords: ["自行车", "停放", "停车", "骑车"],
+            questions: ["操场附近有没有可以停放自行车的地方？", "可以骑车上学吗？", "自行车停在哪里？"],
+            answer: "骑车进校需申请，停放位置不详，建议入学后咨询班主任。"
+        }
+    ],
+    "男生宿舍": [
+        {
+            keywords: ["床铺", "尺寸", "寝具", "自备"],
+            questions: ["宿舍床铺尺寸是多少？需要自备哪些寝具？", "床铺多大？", "需要带什么寝具？"],
+            answer: "床铺尺寸约为157×200cm（床垫最大尺寸）。学生需自备床单、被套、枕套等，建议按单人床规格准备。"
+        },
+        {
+            keywords: ["蚊帐", "允许", "必须"],
+            questions: ["宿舍是否允许使用蚊帐？", "可以挂蚊帐吗？", "需要蚊帐吗？"],
+            answer: "必须使用蚊帐"
+        },
+        {
+            keywords: ["公共区域", "自习空间", "一楼", "饮水机"],
+            questions: ["宿舍每层楼有没有公共区域或自习空间？", "宿舍有自习的地方吗？", "哪里有饮水机？"],
+            answer: "宿舍一楼设有饮水机和宿管值班处。"
+        },
+        {
+            keywords: ["储物空间", "衣柜", "床下", "高度"],
+            questions: ["宿舍里有没有储物空间？", "有衣柜吗？", "床底下可以放东西吗？"],
+            answer: "每人配有衣柜和床下储物空间，床底高度约为34.5厘米。"
+        },
+        {
+            keywords: ["调整", "换宿舍", "寒假", "暑假"],
+            questions: ["宿舍是否每学期调整？", "什么时候换宿舍？", "暑假要搬宿舍吗？"],
+            answer: "一般寒假不动，暑假需搬空，房间可能每学年调整一次。"
+        },
+        {
+            keywords: ["台灯", "功率限制", "充电"],
+            questions: ["宿舍允许使用台灯吗？有无功率限制？", "可以用台灯吗？", "台灯有什么要求？"],
+            answer: "允许使用台灯，但高度不可超过40厘米，不能使用充电台灯。"
+        },
+        {
+            keywords: ["零食", "泡面", "电器", "开水房"],
+            questions: ["宿舍是否可以吃零食或泡面？", "可以在宿舍吃零食吗？", "能泡方便面吗？"],
+            answer: "可以，但禁止使用电器。泡面可到开水房打水冲泡。"
+        },
+        {
+            keywords: ["洗衣服务", "洗衣机", "洗衣服"],
+            questions: ["宿舍是否有洗衣服务或洗衣机？", "有洗衣机吗？", "怎么洗衣服？"],
+            answer: "无。"
+        },
+        {
+            keywords: ["寝室生活", "空调", "淋浴", "盥洗室"],
+            questions: ["上中的寝室生活怎么样？", "寝室条件如何？", "宿舍环境好吗？"],
+            answer: "军训期间要求严格，开学后较为宽松。需与室友和睦相处，共同维护内务。寝室有空调、独立淋浴（定时供应热水），每2间寝室共用盥洗室。"
+        },
+        {
+            keywords: ["洗澡", "热水", "时间", "浴卡"],
+            questions: ["平时在什么时间可以洗澡？", "热水供应时间", "洗澡要刷卡吗？"],
+            answer: "热水供应时间一般为下午4:00～7:00，晚上9:20～10:00。用一卡通（浴卡）付费，冷水免费。"
+        },
+        {
+            keywords: ["禁止", "物品", "电器", "手机"],
+            questions: ["寝室中哪些物品禁止使用？", "什么东西不能在宿舍用？", "可以用手机吗？"],
+            answer: "充电型台灯、蓄电池、吹风机、电磁炉、接线板、游戏机等。非智能机（老人机）需申请，军训期间禁止使用任何电子设备。"
+        },
+        {
+            keywords: ["违反", "纪律", "处理", "处分"],
+            questions: ["如果违反住宿纪律会如何处理？", "违纪怎么办？", "处分有哪些？"],
+            answer: "视情节轻重，从扣分、停宿到校级处分不等。详情见《上海中学学生手册》。"
+        },
+        {
+            keywords: ["损坏", "报修", "赔偿", "设施"],
+            questions: ["公共设施损坏怎么办？", "东西坏了找谁修？", "要赔钱吗？"],
+            answer: "可至本楼宿管处报修，根据损坏情况和原因决定是否需要赔偿。"
+        },
+        {
+            keywords: ["空调", "使用", "温度", "功率"],
+            questions: ["上中的空调如何使用？", "空调怎么开？", "空调制冷效果好吗？"],
+            answer: "寝室内有空调，建议温度设定在24℃左右，功率较小制冷较慢，需室友协商使用。"
+        },
+        {
+            keywords: ["生活费", "餐费", "花费", "开销"],
+            questions: ["一个星期在学校大概需要多少生活费？", "生活费多少够？", "食堂贵吗？"],
+            answer: "约250～300元（含餐费、杂费）。早餐5～10元，午晚餐各10～20元。建议首次带600～700元备用。"
+        }
+    ],
+    "女生宿舍": [
+        {
+            keywords: ["床铺", "尺寸", "寝具", "自备"],
+            questions: ["宿舍床铺尺寸是多少？需要自备哪些寝具？", "床铺多大？", "需要带什么寝具？"],
+            answer: "床铺尺寸约为157×200cm（床垫最大尺寸）。学生需自备床单、被套、枕套等，建议按单人床规格准备。"
+        },
+        {
+            keywords: ["蚊帐", "允许", "必须"],
+            questions: ["宿舍是否允许使用蚊帐？", "可以挂蚊帐吗？", "需要蚊帐吗？"],
+            answer: "必须使用蚊帐"
+        },
+        {
+            keywords: ["公共区域", "自习空间", "一楼", "饮水机"],
+            questions: ["宿舍每层楼有没有公共区域或自习空间？", "宿舍有自习的地方吗？", "哪里有饮水机？"],
+            answer: "宿舍一楼设有饮水机和宿管值班处。"
+        },
+        {
+            keywords: ["储物空间", "衣柜", "床下", "高度"],
+            questions: ["宿舍里有没有储物空间？", "有衣柜吗？", "床底下可以放东西吗？"],
+            answer: "每人配有衣柜和床下储物空间，床底高度约为34.5厘米。"
+        },
+        {
+            keywords: ["调整", "换宿舍", "寒假", "暑假"],
+            questions: ["宿舍是否每学期调整？", "什么时候换宿舍？", "暑假要搬宿舍吗？"],
+            answer: "一般寒假不动，暑假需搬空，房间可能每学年调整一次。"
+        },
+        {
+            keywords: ["台灯", "功率限制", "充电"],
+            questions: ["宿舍允许使用台灯吗？有无功率限制？", "可以用台灯吗？", "台灯有什么要求？"],
+            answer: "允许使用台灯，但高度不可超过40厘米，不能使用充电台灯。"
+        },
+        {
+            keywords: ["零食", "泡面", "电器", "开水房"],
+            questions: ["宿舍是否可以吃零食或泡面？", "可以在宿舍吃零食吗？", "能泡方便面吗？"],
+            answer: "可以，但禁止使用电器。泡面可到开水房打水冲泡。"
+        },
+        {
+            keywords: ["洗衣服务", "洗衣机", "洗衣服"],
+            questions: ["宿舍是否有洗衣服务或洗衣机？", "有洗衣机吗？", "怎么洗衣服？"],
+            answer: "无。"
+        },
+        {
+            keywords: ["寝室生活", "空调", "淋浴", "盥洗室"],
+            questions: ["上中的寝室生活怎么样？", "寝室条件如何？", "宿舍环境好吗？"],
+            answer: "军训期间要求严格，开学后较为宽松。需与室友和睦相处，共同维护内务。寝室有空调、独立淋浴（定时供应热水），每2间寝室共用盥洗室。"
+        },
+        {
+            keywords: ["洗澡", "热水", "时间", "浴卡"],
+            questions: ["平时在什么时间可以洗澡？", "热水供应时间", "洗澡要刷卡吗？"],
+            answer: "热水供应时间一般为下午4:00～7:00，晚上9:20～10:00。用一卡通（浴卡）付费，冷水免费。"
+        },
+        {
+            keywords: ["禁止", "物品", "电器", "手机"],
+            questions: ["寝室中哪些物品禁止使用？", "什么东西不能在宿舍用？", "可以用手机吗？"],
+            answer: "充电型台灯、蓄电池、吹风机、电磁炉、接线板、游戏机等。非智能机（老人机）需申请，军训期间禁止使用任何电子设备。"
+        },
+        {
+            keywords: ["违反", "纪律", "处理", "处分"],
+            questions: ["如果违反住宿纪律会如何处理？", "违纪怎么办？", "处分有哪些？"],
+            answer: "视情节轻重，从扣分、停宿到校级处分不等。详情见《上海中学学生手册》。"
+        },
+        {
+            keywords: ["损坏", "报修", "赔偿", "设施"],
+            questions: ["公共设施损坏怎么办？", "东西坏了找谁修？", "要赔钱吗？"],
+            answer: "可至本楼宿管处报修，根据损坏情况和原因决定是否需要赔偿。"
+        },
+        {
+            keywords: ["空调", "使用", "温度", "功率"],
+            questions: ["上中的空调如何使用？", "空调怎么开？", "空调制冷效果好吗？"],
+            answer: "寝室内有空调，建议温度设定在24℃左右，功率较小制冷较慢，需室友协商使用。"
+        },
+        {
+            keywords: ["生活费", "餐费", "花费", "开销"],
+            questions: ["一个星期在学校大概需要多少生活费？", "生活费多少够？", "食堂贵吗？"],
+            answer: "约250～300元（含餐费、杂费）。早餐5～10元，午晚餐各10～20元。建议首次带600～700元备用。"
+        }
+    ],
+    "图书馆": [
+        {
+            keywords: ["位置", "念慈楼", "阅览室"],
+            questions: ["学校的图书馆在哪里？", "图书馆位置", "阅览室在哪里？"],
+            answer: "位于念慈楼，内设图书馆、阅览室等。"
+        },
+        {
+            keywords: ["自习", "开放", "时间", "中午"],
+            questions: ["图书馆什么时候开放？", "图书馆可以自习吗？", "中午能去图书馆吗？"],
+            answer: "图书馆中午（12:10–13:30）和下午放学后（16:00–19:00）开放，是自习的好去处。"
+        }
+    ],
+    "食堂 (北)": [
+        {
+            keywords: ["食物", "早餐", "午餐", "晚餐", "供应"],
+            questions: ["学校食堂供应哪些食物？", "早餐有什么？", "午餐吃什么？"],
+            answer: "早餐：锅贴、生煎、包子、蛋饼、粢饭团、粥、豆浆等。午餐/晚餐：荤菜（排条、鸡排、牛肉等）、素菜、免费汤类，另有限量面食、馄饨。晚餐：底楼有特色菜（炸鸡腿、东坡肉等）。"
+        },
+        {
+            keywords: ["开放时间", "营业时间", "吃饭时间"],
+            questions: ["食堂开放时间是什么？", "什么时候开饭？", "食堂几点关门？"],
+            answer: "早餐、午餐于下课后开放，晚餐为16:50～18:00。建议早到以免售罄。"
+        },
+        {
+            keywords: ["用餐选择", "罗森", "校外", "便利店"],
+            questions: ["除了食堂还有什么用餐选择？", "有便利店吗？", "可以出去吃饭吗？"],
+            answer: "校内罗森便利店（提供零食、便当），校外百色路有面馆、包子店等。学校鼓励在校内用餐。"
+        },
+        {
+            keywords: ["罗森", "注意事项", "环境", "倡议"],
+            questions: ["罗森超市有哪些注意事项？", "罗森要注意什么？", "在罗森要遵守什么规则？"],
+            answer: "遵守《罗森超市环境自治倡议书》，包括用餐后清理桌面、排队礼让、垃圾分类、不大声喧哗等。"
+        },
+        {
+            keywords: ["生活费", "餐费", "花费", "开销"],
+            questions: ["一个星期在学校大概需要多少生活费？", "生活费多少够？", "食堂贵吗？"],
+            answer: "约250～300元（含餐费、杂费）。早餐5～10元，午晚餐各10～20元。建议首次带600～700元备用。"
+        }
+    ],
+    "食堂 (南)": [
+        {
+            keywords: ["食物", "早餐", "午餐", "晚餐", "供应"],
+            questions: ["学校食堂供应哪些食物？", "早餐有什么？", "午餐吃什么？"],
+            answer: "早餐：锅贴、生煎、包子、蛋饼、粢饭团、粥、豆浆等。午餐/晚餐：荤菜（排条、鸡排、牛肉等）、素菜、免费汤类，另有限量面食、馄饨。晚餐：底楼有特色菜（炸鸡腿、东坡肉等）。"
+        },
+        {
+            keywords: ["开放时间", "营业时间", "吃饭时间"],
+            questions: ["食堂开放时间是什么？", "什么时候开饭？", "食堂几点关门？"],
+            answer: "早餐、午餐于下课后开放，晚餐为16:50～18:00。建议早到以免售罄。"
+        },
+        {
+            keywords: ["用餐选择", "罗森", "校外", "便利店"],
+            questions: ["除了食堂还有什么用餐选择？", "有便利店吗？", "可以出去吃饭吗？"],
+            answer: "校内罗森便利店（提供零食、便当），校外百色路有面馆、包子店等。学校鼓励在校内用餐。"
+        },
+        {
+            keywords: ["罗森", "注意事项", "环境", "倡议"],
+            questions: ["罗森超市有哪些注意事项？", "罗森要注意什么？", "在罗森要遵守什么规则？"],
+            answer: "遵守《罗森超市环境自治倡议书》，包括用餐后清理桌面、排队礼让、垃圾分类、不大声喧哗等。"
+        },
+        {
+            keywords: ["生活费", "餐费", "花费", "开销"],
+            questions: ["一个星期在学校大概需要多少生活费？", "生活费多少够？", "食堂贵吗？"],
+            answer: "约250～300元（含餐费、杂费）。早餐5～10元，午晚餐各10～20元。建议首次带600～700元备用。"
+        }
+    ],
+    "工程楼": [
+        {
+            keywords: ["实验室", "设施", "设备", "先进"],
+            questions: ["实验室条件如何？", "工程楼有什么实验室？", "实验设备好吗？"],
+            answer: "条件优越，设备先进（如DIS数字监控系统、原子光谱实验仪等），部分设备大学都不具备。学生可在老师指导下使用进行课题研究。"
+        },
+        {
+            keywords: ["笔记本电脑", "带电脑", "申请", "批准"],
+            questions: ["平行班学生可以带笔记本电脑吗？", "可以带电脑上学吗？", "带电脑需要申请吗？"],
+            answer: "仅限特色班课题或学生组织工作需要，需填写申请表并经老师批准。"
+        },
+        {
+            keywords: ["科工班", "STEM", "课程", "平行班"],
+            questions: ["工程楼是做什么的？", "科工班在哪里上课？", "STEM课程在哪里上？"],
+            answer: "工程楼：科工班专用课及平行班STEM课程，配有先进实验室。"
+        }
+    ],
+    "逸夫楼": [
+        {
+            keywords: ["实验室", "设施", "设备", "先进"],
+            questions: ["实验室条件如何？", "逸夫楼有什么实验室？", "实验设备好吗？"],
+            answer: "条件优越，设备先进（如DIS数字监控系统、原子光谱实验仪等），部分设备大学都不具备。学生可在老师指导下使用进行课题研究。"
+        },
+        {
+            keywords: ["化学", "生物", "计算机", "实验"],
+            questions: ["逸夫楼是做什么的？", "有哪些实验室？", "实验课在哪里上？"],
+            answer: "逸夫楼：实验楼，含化学、生物、计算机实验室。"
+        }
+    ]
+};
+
+function handleDialogueSend() {
+    const question = dialogueInput.value.trim();
+    if (!question) return;
+    
+    
+    dialogueText.innerHTML += `<p style="color: #3498db; text-align: right;">${question}</p>`;
+    
+    // 获取当前建筑
+    const currentBuilding = state.interaction.currentBuilding;
+    let answer = "";
+    
+    console.log('=== 对话处理 ===');
+    console.log('当前建筑:', currentBuilding ? currentBuilding.name : '无');
+    console.log('问题:', question);
+    
+    if (currentBuilding) {
+        console.log('建筑名称:', currentBuilding.name);
+        if (dialogueDatabase) {
+            console.log('对话数据库存在');
+            console.log('支持的建筑:', Object.keys(dialogueDatabase));
+            
+            if (dialogueDatabase[currentBuilding.name]) {
+                console.log('找到建筑对话数据');
+                
+                const buildingDialogues = dialogueDatabase[currentBuilding.name];
+                const bestMatch = findBestAnswer(question, buildingDialogues);
+                
+                if (bestMatch) {
+                    answer = bestMatch;
+                    console.log('找到匹配答案:', answer);
+                } else {
+                    console.log('未找到匹配答案');
+                    
+                    const suggestedBuilding = findSuggestedBuilding(question);
+                    if (suggestedBuilding) {
+                        answer = `可以问${suggestedBuilding}这个问题哦`;
+                        console.log('建议建筑:', suggestedBuilding);
+                    } else {
+                        answer = "似乎没有回答哦";
+                        console.log('无建议建筑');
+                    }
+                }
+            } else {
+                console.log('建筑无对话数据');
+                answer = "抱歉，我无法回答这个问题。";
+            }
+        } else {
+            console.log('对话数据库不存在');
+            answer = "抱歉，我无法回答这个问题。";
+        }
+    } else {
+        console.log('无当前建筑');
+        answer = "抱歉，我无法回答这个问题。";
+    }
+   
+    
+    dialogueText.innerHTML += `<p>${answer}</p>`;
+    
+    
+    dialogueInput.value = '';
+    dialogueText.scrollTop = dialogueText.scrollHeight;
+}
+
+
+function calculateSimilarity(question, keywords, questions) {
+    let score = 0;
+    const lowerQuestion = question.toLowerCase();
+    
+    // 关键词匹配
+    keywords.forEach(keyword => {
+        if (lowerQuestion.includes(keyword.toLowerCase())) {
+            score += 2; 
+        }
+    });
+    
+    // 问题匹配
+    questions.forEach(q => {
+        const lowerQ = q.toLowerCase();
+        const words1 = lowerQuestion.split(/\s+|[.,!?，。！？]/);
+        const words2 = lowerQ.split(/\s+|[.,!?，。！？]/);
+        
+        
+        const intersection = words1.filter(word => words2.includes(word));
+        const similarity = intersection.length / Math.sqrt(words1.length * words2.length);
+        
+        if (similarity > 0.3) {
+            score += similarity * 5; 
+        }
+    });
+    
+    return score;
+}
+
+
+function findBestAnswer(question, dialogues) {
+    let bestScore = 0;
+    let bestAnswer = null;
+    
+    dialogues.forEach(dialogue => {
+        const score = calculateSimilarity(question, dialogue.keywords, dialogue.questions);
+        if (score > bestScore) {
+            bestScore = score;
+            bestAnswer = dialogue.answer;
+        }
+    });
+    
+    
+    return bestScore > 1 ? bestAnswer : null;
+}
+
+
+function findSuggestedBuilding(question) {
+    const buildingNames = Object.keys(dialogueDatabase);
+    
+    for (const buildingName of buildingNames) {
+        const dialogues = dialogueDatabase[buildingName];
+        const bestScore = dialogues.reduce((max, dialogue) => {
+            const score = calculateSimilarity(question, dialogue.keywords, dialogue.questions);
+            return Math.max(max, score);
+        }, 0);
+        
+        if (bestScore > 2) {
+            return buildingName;
+        }
+    }
+    
+    return null;
+}
+
+// 语音识别
+let recognition = null;
+let isRecording = false;
+
+function initSpeechRecognition() {
+    if ('webkitSpeechRecognition' in window) {
+        recognition = new webkitSpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.lang = 'zh-CN';
+        
+        recognition.onresult = function(event) {
+            const transcript = event.results[0][0].transcript;
+            dialogueInput.value = transcript;
+        };
+        
+        recognition.onend = function() {
+            isRecording = false;
+            voiceButton.classList.remove('recording');
+            voiceButton.innerHTML = '<i class="fas fa-microphone"></i>';
+        };
+        
+        recognition.onerror = function(event) {
+            console.error('语音识别错误:', event.error);
+            isRecording = false;
+            voiceButton.classList.remove('recording');
+            voiceButton.innerHTML = '<i class="fas fa-microphone"></i>';
+        };
+    } else {
+        voiceButton.disabled = true;
+        voiceButton.title = '您的浏览器不支持语音识别';
+    }
+}
+
+function toggleSpeechRecognition() {
+    if (!recognition) return;
+    
+    if (isRecording) {
+        recognition.stop();
+    } else {
+        recognition.start();
+        isRecording = true;
+        voiceButton.classList.add('recording');
+        voiceButton.innerHTML = '<i class="fas fa-stop"></i>';
+    }
+}
+
+
+function update() {
+    handleRegularInput();
+    const p = state.player;
+    updateNavigation();
+    checkInteraction();
+    
+    p.x = Math.max(0, Math.min(mapWidth, p.x));
+    p.y = Math.max(0, Math.min(mapHeight, p.y));
+    
+    if (!pointInPolygon(p.x, p.y, campusPolygon)) {
+        
+        p.x = state.navigation.lastValidX;
+        p.y = state.navigation.lastValidY;
+    } else {
+      
+        
+        state.navigation.lastValidX = p.x;
+        state.navigation.lastValidY = p.y;
+    }
+    
+    state.camera.x = p.x - width / 2;
+    state.camera.y = p.y - height / 2;
+}
+
+/**
+ * 渲染函数
+ */
+function draw() {
+    ctx.fillStyle = '#2c3e50'; 
+    ctx.fillRect(0, 0, width, height);
+
+    if (!mapLoaded) {
+        requestAnimationFrame(loop);
+        return;
+    }
+
+    ctx.save();
+    ctx.translate(-state.camera.x, -state.camera.y);
+
+    
+    if (mapImage.complete && mapImage.naturalHeight !== 0) {
+        ctx.drawImage(mapImage, 0, 0, mapWidth, mapHeight);
+    } else {
+        
+        ctx.fillStyle = '#4caf50';
+        ctx.fillRect(0, 0, mapWidth, mapHeight);
+        
+        ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+        ctx.lineWidth = 2;
+        for(let i=0; i<mapWidth; i+=100) {
+            ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i, mapHeight); ctx.stroke();
+        }
+        for(let i=0; i<mapHeight; i+=100) {
+            ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(mapWidth, i); ctx.stroke();
+        }
+    }
+
+    
+    if (state.navigation.active && state.navigation.target) {
+        const t = state.navigation.target;
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 3;
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath();
+        ctx.arc(t.x, t.y, 25, 0, Math.PI*2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        
+        const pulse = (Math.sin(Date.now() / 200) + 1) * 10;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+        ctx.beginPath();
+        ctx.arc(t.x, t.y, 25 + pulse, 0, Math.PI*2);
+        ctx.stroke();
+        
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 16px Arial';
+        ctx.textAlign = 'center';
+        ctx.shadowColor = 'black';
+        ctx.shadowBlur = 4;
+        ctx.fillText("目的地", t.x, t.y - 35);
+        ctx.shadowBlur = 0;
+    }
+
+    // 角色
+    drawStudent(state.player);
+
+    ctx.restore();
+
+    requestAnimationFrame(loop);
+    
+    ctx.fillStyle = '#fff';
+    ctx.font = '16px Arial';
+    ctx.textAlign = 'left';
+    ctx.fillText(`X: ${Math.round(state.player.x)}  Y: ${Math.round(state.player.y)}`, 20, 30);
+}
+
+function drawStudent(p) {
+    ctx.save();
+    ctx.translate(p.x, p.y);
+
+    const isFlipped = !p.facingRight;
+    if (isFlipped) {
+        ctx.scale(-1, 1);
+    }
+
+    const skinColor = '#ffccbc';
+    const shirtColor = '#ffffff';
+    const pantsColor = '#000080'; 
+    const shoeColor = '#333333';
+    const emblemRed = '#d32f2f';
+    const emblemGold = '#ffd700';
+
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath();
+    ctx.ellipse(0, 28, 18, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    let legAngle = 0;
+    let armAngle = 0;
+    
+    if (p.isMoving) {
+        legAngle = Math.sin(p.walkCycle) * 0.5; 
+        armAngle = Math.sin(p.walkCycle + Math.PI) * 0.4;
+    }
+
+    drawLeg(-3, legAngle, pantsColor, shoeColor, false);
+    drawArm(-5, armAngle, skinColor, shirtColor, false);
+    drawBody(shirtColor, pantsColor, skinColor, emblemRed, emblemGold, isFlipped);
+    drawArm(5, -armAngle, skinColor, shirtColor, true);
+    drawLeg(3, -legAngle, pantsColor, shoeColor, true);
+
+    ctx.restore();
+}
+
+function drawBody(shirtColor, pantsColor, skinColor, emblemRed, emblemGold, isFlipped) {
+    ctx.fillStyle = shirtColor;
+    ctx.beginPath();
+    ctx.moveTo(-9, -22);
+    ctx.quadraticCurveTo(0, -15, 9, -22);
+    ctx.lineTo(11, 8);
+    ctx.quadraticCurveTo(0, 10, -11, 8);
+    ctx.closePath();
+    ctx.fill();
+    
+    ctx.strokeStyle = '#e0e0e0';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    ctx.save();
+    if (isFlipped) {
+        ctx.scale(-1, 1);
+    }
+    
+    const badgeX = -7; 
+    const badgeY = -14;
+    const badgeSize = 5;
+
+    ctx.fillStyle = emblemRed;
+    ctx.beginPath();
+    ctx.arc(badgeX, badgeY, badgeSize, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.strokeStyle = emblemGold;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    ctx.strokeStyle = emblemGold;
+    ctx.lineWidth = 1.5;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(badgeX - 2, badgeY - 2);
+    ctx.quadraticCurveTo(badgeX + 2, badgeY - 2, badgeX + 2, badgeY);
+    ctx.quadraticCurveTo(badgeX + 2, badgeY + 2, badgeX - 2, badgeY + 2);
+    ctx.stroke();
+
+    ctx.restore();
+
+    ctx.fillStyle = skinColor;
+    ctx.beginPath();
+    ctx.arc(0, -32, 8, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#111';
+    ctx.beginPath();
+    ctx.arc(0, -33, 8, Math.PI, 0);
+    ctx.lineTo(8, -33);
+    ctx.lineTo(8, -29);
+    ctx.lineTo(-8, -29);
+    ctx.closePath();
+    ctx.fill();
+    
+    ctx.fillStyle = '#333';
+    ctx.beginPath();
+    ctx.arc(-3, -35, 2, 0, Math.PI*2);
+    ctx.fill();
+}
+
+function drawLeg(xOffset, angle, color, shoeColor, isFront) {
+    ctx.save();
+    ctx.translate(xOffset, 8);
+    ctx.rotate(angle);
+
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 6;
+    ctx.lineCap = 'round';
+    
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(0, 16);
+    ctx.stroke();
+
+    ctx.fillStyle = shoeColor;
+    ctx.beginPath();
+    ctx.ellipse(0, 18, 5, 3, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+}
+
+function drawArm(xOffset, angle, skinColor, shirtColor, isFront) {
+    ctx.save();
+    ctx.translate(xOffset, -18);
+    ctx.rotate(angle);
+
+    ctx.strokeStyle = shirtColor;
+    ctx.lineWidth = 5;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(0, 14);
+    ctx.stroke();
+
+    ctx.fillStyle = skinColor;
+    ctx.beginPath();
+    ctx.arc(0, 16, 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+}
+
+
+let navigationHintTimeout;
+function showNavigationHint(building) {
+    const hintEl = document.getElementById('navigation-hint');
+    const textEl = document.getElementById('navigation-hint-text');
+    const distanceEl = document.getElementById('navigation-hint-distance');
+    
+    if (hintEl && textEl && distanceEl) {
+        textEl.textContent = `正在导航至: ${building.name}`;
+        distanceEl.textContent = ''; 
+        
+        hintEl.style.opacity = '1';
+        
+        
+        if (navigationHintTimeout) {
+            clearTimeout(navigationHintTimeout);
+        }
+        
+        
+        navigationHintTimeout = setTimeout(() => {
+            hintEl.style.opacity = '0';
+        }, 3000);
+    }
+}
+
+
+let arrivalHintTimeout;
+function showArrivalHint(building) {
+    const hintEl = document.getElementById('navigation-hint');
+    const textEl = document.getElementById('navigation-hint-text');
+    const distanceEl = document.getElementById('navigation-hint-distance');
+    
+    if (hintEl && textEl && distanceEl) {
+        textEl.textContent = `已到达: ${building.name}`;
+        distanceEl.textContent = '按E键开始对话';
+        
+        
+        hintEl.style.opacity = '1';
+        
+        
+        if (arrivalHintTimeout) {
+            clearTimeout(arrivalHintTimeout);
+        }
+        
+        
+        arrivalHintTimeout = setTimeout(() => {
+            hintEl.style.opacity = '0';
+        }, 4000);
+    }
+}
+
+
+function initInteraction() {
+    
+    dialogueClose.addEventListener('click', closeDialogue);
+    
+    
+    dialogueSend.addEventListener('click', handleDialogueSend);
+    
+    
+    dialogueInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            handleDialogueSend();
+        }
+    });
+    
+    
+    voiceButton.addEventListener('click', toggleSpeechRecognition);
+    
+    
+    interactionKey.addEventListener('click', () => {
+        if (state.interaction.active && !state.interaction.dialogueOpen) {
+            openDialogue(state.interaction.currentBuilding);
+            state.interaction.dialogueOpen = true;
+        }
+    });
+    
+    
+    initSpeechRecognition();
+}
+
+function loop() {
+    update();
+    draw();
+}
+
+initNavigation();
+initInteraction();
+loop();
+
+</script>
+</body>
+</html>
